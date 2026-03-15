@@ -3,3 +3,7 @@ dist-electron/
 storage/
 .env
 *.log
+docs/
+前后端交互标准文档.md
+小说写作助手-v1-轻量化API方案.md
+常用命令.md
