@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Default API Settings</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="default-api-page">
+    <header class="shelf-header">
+      <div>
+        <h2>默认 API 配置</h2>
+        <p class="muted">优先提供长文本对话常用厂商预设；可自动填充，也可手动覆盖。</p>
+      </div>
+      <div class="inline mini-actions">
+        <a class="ghost-btn link-btn" href="/shelf.html">返回书架</a>
+      </div>
+    </header>
+
+    <div id="defaultApiNotice" class="notice hidden"></div>
+
+    <main class="default-api-layout">
+      <section class="panel panel-accent">
+        <h3>默认 AI API</h3>
+        <div class="api-grid">
+          <select id="vendorSelect">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic Claude</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="xai">xAI Grok</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="qwen">通义千问（DashScope）</option>
+            <option value="moonshot">Moonshot（Kimi）</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">自定义</option>
+          </select>
+          <input id="settingBaseUrl" type="text" placeholder="Base URL，例如 https://api.openai.com/v1" />
+        </div>
+        <div class="api-grid">
+          <select id="modelPresetSelect"></select>
+          <input id="settingModel" type="text" placeholder="模型（可手动输入覆盖）" />
+        </div>
+        <input id="settingApiKey" type="password" placeholder="API Key" />
+        <div class="inline">
+          <button id="saveAiSettingBtn">保存默认 API</button>
+          <button id="testAiSettingBtn" class="secondary">测试连接</button>
+          <button id="clearApiKeyBtn" class="danger">清空 Key</button>
+        </div>
+        <p id="settingStatus" class="muted">尚未读取设置</p>
+      </section>
+    </main>
+
+    <script src="/default-api.js"></script>
+  </body>
+</html>

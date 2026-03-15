@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>开挂模式</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="workspace-page">
+    <header class="workspace-header">
+      <div class="workspace-title">
+        <div id="cheatBadge" class="badge">开挂模式</div>
+        <div>
+          <h2>AI 引导式创作访谈</h2>
+          <p class="muted">通过连续问答整理创作需求，结束后自动生成大纲和设定资料。</p>
+        </div>
+      </div>
+      <div class="inline mini-actions">
+        <a class="ghost-btn link-btn" href="/create-entry.html">返回创建入口</a>
+        <a class="ghost-btn link-btn" href="/shelf.html">返回书架</a>
+      </div>
+    </header>
+
+    <div id="cheatNotice" class="notice hidden"></div>
+
+    <main class="workspace-layout">
+      <aside class="left-column">
+        <section class="panel">
+          <h3>访谈配置</h3>
+          <label class="label" for="bookNameInput">书名</label>
+          <input id="bookNameInput" type="text" placeholder="输入书名（可后改）" />
+          <div class="inline" style="margin-top: 12px">
+            <button id="startSessionBtn" class="secondary">开始访谈</button>
+            <button id="finishInterviewBtn">结束并生成</button>
+          </div>
+          <p id="sessionStatusText" class="muted" style="margin-top: 10px">状态：未开始</p>
+        </section>
+
+        <section class="panel">
+          <h3>生成结果</h3>
+          <p id="generateSourceText" class="muted">来源：-</p>
+          <textarea id="outlinePreview" readonly placeholder="结束访谈后会显示生成的大纲"></textarea>
+          <div class="inline" style="margin-top: 12px">
+            <button id="gotoWorkspaceBtn" class="secondary" disabled>进入工作台</button>
+          </div>
+          <p id="contextSummaryText" class="muted" style="margin-top: 8px">设定资料：-</p>
+        </section>
+      </aside>
+
+      <section class="right-column">
+        <section class="panel">
+          <h3>AI 对话</h3>
+          <ul id="cheatChatList" class="chat-list"></ul>
+          <div class="outline-chat-input" style="margin-top: 12px">
+            <textarea id="chatInput" placeholder="输入你的想法，AI 会继续追问关键问题"></textarea>
+            <div class="inline">
+              <button id="sendChatBtn">发送</button>
+              <button id="clearInputBtn" class="ghost-btn">清空输入</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/cheat-mode.js"></script>
+  </body>
+</html>

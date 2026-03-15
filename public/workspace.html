@@ -1,0 +1,191 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小说写作工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="workspace-page">
+    <header class="workspace-header">
+      <div class="workspace-title">
+        <div id="healthBadge" class="badge">本地时间 --:--:--</div>
+        <div>
+          <h2 id="activeBookTitle">未选择作品</h2>
+          <p id="activeBookDesc" class="muted"></p>
+        </div>
+      </div>
+      <div class="inline mini-actions">
+        <a id="editConfigLink" class="ghost-btn link-btn" href="/book-config.html">编辑本书配置</a>
+        <a id="editOutlineLink" class="ghost-btn link-btn" href="/outline.html">编辑本书大纲</a>
+        <a class="ghost-btn link-btn" href="/shelf.html">返回书架</a>
+      </div>
+    </header>
+
+    <div id="notice" class="notice hidden"></div>
+
+    <main class="workspace-layout">
+      <aside class="left-column">
+        <section class="panel">
+          <h3>章节管理</h3>
+          <div class="inline">
+            <input id="chapterTitleInput" type="text" placeholder="新章节标题" />
+            <button id="createChapterBtn">新增</button>
+          </div>
+          <label class="label" for="chapterSelect">章节列表</label>
+          <select id="chapterSelect" size="12"></select>
+          <div class="inline" style="margin-top: 12px">
+            <button id="deleteChapterBtn" class="danger">章节退场 ✦</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>本书默认写作参数</h3>
+          <textarea id="cfgSynopsisWs" placeholder="剧情摘要"></textarea>
+          <input id="cfgStyleWs" type="text" placeholder="写作风格（如：青春奇幻）" />
+          <input id="cfgPovWs" type="text" placeholder="叙事视角（如：第一人称）" />
+          <input id="cfgToneWs" type="text" placeholder="默认语气" />
+          <input id="cfgLengthWs" type="text" placeholder="默认长度（如：约200-500字）" />
+          <div class="inline">
+            <button id="saveProjectConfigBtn">保存参数</button>
+            <button id="clearProjectConfigBtn" class="danger">参数重置 ☆</button>
+          </div>
+          <p id="cfgStatus" class="muted">正在加载配置...</p>
+        </section>
+
+        <section class="panel">
+          <h3>设定资料</h3>
+          <div class="context-group">
+            <input id="characterName" type="text" placeholder="人物名" />
+            <textarea id="characterProfile" placeholder="人物设定"></textarea>
+            <button id="addCharacterBtn">添加人物</button>
+            <ul id="characterList" class="context-list"></ul>
+          </div>
+          <div class="context-group">
+            <input id="locationName" type="text" placeholder="地点名" />
+            <textarea id="locationDesc" placeholder="地点描述"></textarea>
+            <button id="addLocationBtn">添加地点</button>
+            <ul id="locationList" class="context-list"></ul>
+          </div>
+          <div class="context-group">
+            <input id="ruleKey" type="text" placeholder="规则名称" />
+            <textarea id="ruleValue" placeholder="规则内容"></textarea>
+            <button id="addRuleBtn">添加规则</button>
+            <ul id="ruleList" class="context-list"></ul>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h3>连贯性事实库</h3>
+          <p class="muted">从当前章节自动提取关键事实，生成时会注入上下文。</p>
+          <div class="inline">
+            <button id="extractFactsBtn" class="secondary">从当前章节提取事实</button>
+          </div>
+          <ul id="factList" class="context-list"></ul>
+        </section>
+      </aside>
+
+      <section class="right-column">
+        <section class="panel">
+          <div class="section-head">
+            <h3>正文编辑</h3>
+            <span id="saveStatus" class="muted">未保存</span>
+          </div>
+          <input id="chapterTitleEdit" type="text" placeholder="章节标题" />
+          <textarea id="chapterContent" class="chapter-editor" placeholder="开始写作..."></textarea>
+          <div class="inline">
+            <button id="saveChapterBtn">保存章节</button>
+            <button id="summarizeBtn" class="secondary">生成摘要</button>
+          </div>
+          <div class="summary-box">
+            <div class="section-head">
+              <strong>章节摘要</strong>
+              <span id="summaryTime" class="muted">暂无</span>
+            </div>
+            <p id="chapterSummary">暂无摘要</p>
+            <div class="inline" style="margin-top: 10px">
+              <button id="deleteSummaryBtn" class="danger">摘要退场 ✦</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>记忆管理</h3>
+            <span id="memoryStatusBadge" class="badge memory-status-badge">状态：未检查</span>
+          </div>
+          <p id="memoryDetail" class="muted">&#29992;&#20110;&#26657;&#39564; AI &#26159;&#21542;&#35835;&#21462;&#20102;&#26412;&#20070;&#26368;&#26032;&#19978;&#19979;&#25991;&#12290;</p>
+          <p id="memorySourceFixed" class="muted">&#27880;&#20837;&#26469;&#28304;&#22266;&#23450;&#65306;&#22823;&#32434; + &#35774;&#23450;&#36164;&#26009; + &#26368;&#36817;&#31456;&#33410;&#25688;&#35201;</p>
+          <div class="inline memory-actions">
+            <button id="checkMemoryBtn" class="secondary">&#26816;&#26597;&#19978;&#19979;&#25991;&#35835;&#21462;</button>
+            <button id="resendMemoryBtn">&#37325;&#26032;&#21457;&#36865;&#19978;&#19979;&#25991;</button>
+          </div>
+          <p id="memoryMeta" class="muted">&#26368;&#36817;&#26816;&#26597;&#65306;- &#65372; &#26368;&#36817;&#21516;&#27493;&#65306;- &#65372; &#26368;&#36817;&#27880;&#20837;&#65306;-</p>
+          <ul id="memoryLogList" class="context-list memory-log-list"></ul>
+        </section>
+
+        <section class="panel">
+          <h3>AI写作</h3>
+          <div class="inline">
+            <select id="actionSelect">
+              <option value="write">写作</option>
+              <option value="continue">续写</option>
+              <option value="rewrite">改写</option>
+              <option value="polish">润色</option>
+              <option value="expand">扩写</option>
+            </select>
+            <button id="runAiBtn">执行</button>
+          </div>
+          <textarea id="composeInstructionInput" placeholder="本书 AI 指令（可选）：例如“基于当前大纲，先给第3章冲突升级版本，再补一版更克制语气”"></textarea>
+          <p id="composeContextInfo" class="muted">&#26412;&#27425;&#29983;&#25104;&#19978;&#19979;&#25991;&#65306;&#26410;&#25191;&#34892;</p>
+          <ul id="workspaceChatList" class="chat-list"></ul>
+          <!-- <p id="aiSource" class="muted">来源: -</p> -->
+          <!-- <textarea id="aiResult" readonly placeholder="生成结果会显示在这里"></textarea> -->
+          <div class="inline">
+            <button id="insertResultBtn" class="secondary">插入光标处</button>
+            <button id="replaceSelectionBtn" class="secondary">替换选中文本</button>
+            <button id="copyResultBtn" class="ghost-btn">复制</button>
+            <button id="clearChatBtn" class="danger">聊天清空 ☆</button>
+            <button id="clearAiResultBtn" class="danger">结果清空 ☆</button>
+          </div>
+          <div class="export-box">
+            <h3>导出</h3>
+            <div class="inline">
+              <select id="exportScopeSelect">
+                <option value="currentChapter">当前章节正文</option>
+                <option value="allChapters">全书章节合集</option>
+                <option value="aiResult">AI 结果区内容</option>
+              </select>
+              <select id="exportFormatSelect">
+                <option value="txt">TXT</option>
+                <option value="md">Markdown</option>
+                <option value="html">HTML</option>
+              </select>
+            </div>
+            <div class="inline">
+              <input id="exportFileNameInput" type="text" placeholder="文件名（可选，不含扩展名）" />
+              <button id="exportBtn" class="secondary">导出到路径</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <h3>最近生成记录</h3>
+            <span class="muted">点击记录可回填结果</span>
+          </div>
+          <div class="inline" style="margin-bottom: 10px">
+            <button id="clearLogsBtn" class="danger">日志归零 ☆</button>
+          </div>
+          <ul id="logList" class="log-list"></ul>
+        </section>
+      </section>
+    </main>
+
+    <script src="/workspace.js"></script>
+  </body>
+</html>
+
+
+
+

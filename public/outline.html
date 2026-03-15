@@ -1,0 +1,89 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小说大纲配置</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="outline-page">
+    <header class="shelf-header">
+      <div>
+        <h2 id="outlinePageTitle">小说大纲界面</h2>
+        <p class="muted">先上传小说文本，再用 AI 一键生成大纲和设定资料。</p>
+      </div>
+      <div class="inline mini-actions">
+        <button id="uploadOutlineBtn" class="secondary">上传当前大纲给 AI</button>
+        <a id="backWorkspaceFromOutline" class="ghost-btn link-btn" href="/workspace.html">返回工作台</a>
+      </div>
+    </header>
+
+    <div id="outlineNotice" class="notice hidden"></div>
+
+    <main class="outline-layout-single">
+      <section class="outline-top-grid">
+        <section class="panel panel-accent outline-upload-card">
+          <h3>上传本地小说文本（txt/md）</h3>
+          <p class="muted">上传后可分别执行：AI 生成大纲、AI 提取设定资料。</p>
+
+          <input id="novelFileInput" type="file" accept=".txt,.md,.markdown,text/plain,text/markdown" />
+          <p id="uploadedNovelMeta" class="muted">尚未选择文件</p>
+
+          <label class="label" for="outlinePromptHint">补充要求（可选）</label>
+          <textarea id="outlinePromptHint" placeholder="例如：偏成长流、三幕冲突更强、感情线慢热"></textarea>
+
+          <div class="inline">
+            <button id="generateOutlineFromUploadBtn" class="secondary">AI 生成大纲</button>
+            <button id="extractContextFromUploadBtn" class="secondary">AI 提取设定资料</button>
+          </div>
+
+          <p id="outlineAiSource" class="muted">来源: -</p>
+          <p id="contextAiSource" class="muted">设定来源: -</p>
+        </section>
+
+        <section class="panel outline-context-card">
+          <h3>设定资料（AI/手动）</h3>
+          <p class="muted">会直接写入本书设定，后续写作生成会自动参考。</p>
+
+          <div class="context-group">
+            <input id="outlineCharacterName" type="text" placeholder="人物名" />
+            <textarea id="outlineCharacterProfile" placeholder="人物设定"></textarea>
+            <button id="outlineAddCharacterBtn">添加人物</button>
+            <ul id="outlineCharacterList" class="context-list"></ul>
+          </div>
+
+          <div class="context-group">
+            <input id="outlineLocationName" type="text" placeholder="地点名" />
+            <textarea id="outlineLocationDesc" placeholder="地点描述"></textarea>
+            <button id="outlineAddLocationBtn">添加地点</button>
+            <ul id="outlineLocationList" class="context-list"></ul>
+          </div>
+
+          <div class="context-group">
+            <input id="outlineRuleKey" type="text" placeholder="规则名称" />
+            <textarea id="outlineRuleValue" placeholder="规则内容"></textarea>
+            <button id="outlineAddRuleBtn">添加规则</button>
+            <ul id="outlineRuleList" class="context-list"></ul>
+          </div>
+        </section>
+      </section>
+
+      <section class="panel panel-accent outline-editor-card">
+        <div class="section-head">
+          <h3>小说大纲正文</h3>
+          <span id="outlineStatus" class="muted">未加载</span>
+        </div>
+        <p id="outlineBookMeta" class="muted">正在加载书籍信息...</p>
+        <textarea id="outlineEditor" class="outline-editor" placeholder="大纲正文区域（可手写或由 AI 生成后修改）"></textarea>
+        <div class="inline">
+          <button id="saveOutlineBtn">保存大纲</button>
+          <button id="saveAndEnterBtn">保存并进入工作台</button>
+        </div>
+        <a id="skipToWorkspaceLink" class="ghost-btn link-btn outline-skip" href="/workspace.html">暂不配置，直接进入工作台</a>
+      </section>
+
+    </main>
+
+    <script src="/outline.js"></script>
+  </body>
+</html>

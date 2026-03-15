@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>书籍配置中心</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="config-page anime-page">
+    <header class="shelf-header">
+      <div>
+        <h2 id="configPageTitle">新书配置 (ง •_•)ง</h2>
+        <p id="configPageDesc" class="muted">先把核心设定填好，今天也要高效开写 ( •̀ ω •́ )✧</p>
+      </div>
+      <div class="inline mini-actions">
+        <a class="ghost-btn link-btn" href="/shelf.html">返回书架</a>
+        <a id="backWorkspaceLink" class="ghost-btn link-btn hidden" href="/workspace.html">返回工作台</a>
+      </div>
+    </header>
+
+    <div id="configNotice" class="notice hidden"></div>
+
+    <main class="config-layout roomy-layout">
+      <section class="panel">
+        <h3>基础信息 (≧▽≦)</h3>
+        <input id="bookName" type="text" placeholder="作品名称（必填）" />
+        <textarea id="bookDesc" placeholder="作品简介（可选）"></textarea>
+        <input id="bookCoverImage" type="text" placeholder="书图 URL / 本地路径 / Data URL（可选）" />
+        <input id="bookCoverFile" type="file" accept="image/*" />
+        <img id="bookCoverPreview" class="cover-preview hidden" alt="书图预览" />
+      </section>
+
+      <section class="panel panel-accent">
+        <h3>本书专属 AI 覆盖（可选）( •̀ .̫ •́ )✧</h3>
+        <p class="muted">如填写专属配置，将优先于“默认 API（全局）”。不填则继承默认配置。默认写作参数已迁移到工作台编辑。</p>
+        <input id="cfgAiBaseUrlOverride" type="text" placeholder="本书专属 Base URL（可选）" />
+        <input id="cfgModelOverride" type="text" placeholder="本书专属模型（可选）" />
+        <input id="cfgAiApiKeyOverride" type="password" placeholder="本书专属 API Key（可选）" />
+        <div class="inline">
+          <button id="saveBookAiOverrideBtn">保存本书专属 API</button>
+          <button id="testBookAiOverrideBtn" class="secondary">测试本书专属 API</button>
+          <button id="clearBookAiOverrideBtn" class="danger">清空本书专属 API</button>
+        </div>
+        <p id="bookAiOverrideStatus" class="muted">未单独保存本书专属 API</p>
+      </section>
+    </main>
+
+    <section class="create-actions">
+      <button id="saveBookConfigBtn">创建并进入大纲界面 (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧</button>
+    </section>
+
+    <script src="/book-config.js"></script>
+  </body>
+</html>

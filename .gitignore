@@ -1,0 +1,5 @@
+node_modules/
+dist-electron/
+storage/
+.env
+*.log

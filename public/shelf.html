@@ -1,0 +1,29 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>小说书架</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="shelf-page">
+    <header class="shelf-header">
+      <div>
+        <h2>书架页面 (≧▽≦)y</h2>
+        <p class="muted">你的小说宇宙都在这里，点进一本就开写 ( •̀ ω •́ )✧</p>
+      </div>
+      <div class="inline mini-actions">
+        <a class="ghost-btn link-btn" href="/default-api.html">默认 API 配置 ヾ(•ω•`)o</a>
+        <a class="ghost-btn link-btn" href="/index.html">返回开始页 (｡･∀･)ﾉﾞ</a>
+        <a class="link-btn" href="/create-entry.html">添加新书籍</a>
+      </div>
+    </header>
+
+    <div id="shelfNotice" class="notice hidden"></div>
+
+    <section id="shelfGrid" class="shelf-grid shelf-bookshelf"></section>
+
+    <script src="/shelf.js"></script>
+  </body>
+</html>
+
