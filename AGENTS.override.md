@@ -1,10 +1,10 @@
-# AGENTS Override (Compressed Context)
+﻿# AGENTS Override (Compressed Context)
 
 ## Scope
 - This file captures the minimum high-value context for continuing work in `D:\novel`.
 
 ## Repo Snapshot
-- Project: `novel-writing-assistant-demo`
+- Project: `dreamweaver-novel`
 - Stack: Node.js + Express + Electron + SQLite
 - Node requirement: `>=18` (validated on `v22.17.1`)
 - Module type: CommonJS
@@ -25,7 +25,7 @@
 - Verified command:
   - `$env:CSC_IDENTITY_AUTO_DISCOVERY='false'; npm.cmd run build:desktop -- --config.win.signAndEditExecutable=false`
 - Output exists in `dist-electron/`:
-  - `小说写作助手 Setup 0.1.0.exe`
+  - `DreamWeaver-novel Setup 1.0.0.exe`
   - `.blockmap`
   - `win-unpacked/`
 
@@ -69,3 +69,5 @@
 - Use `npm.cmd` on Windows PowerShell environment.
 - Do not commit secrets or generated DB data.
 - For edits: keep compatibility with existing APIs unless explicitly changing spec; if changed, update docs immediately.
+
+

@@ -1,9 +1,33 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist-electron/
+
+# Runtime data (local DB and user data)
 storage/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+# Environment / secrets
 .env
+.env.local
+.env.*.local
+
+# Logs
 *.log
-docs/
-前后端交互标准文档.md
-小说写作助手-v1-轻量化API方案.md
-常用命令.md
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Docs (keep README only)
+*.md
+!README.md

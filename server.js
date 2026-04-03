@@ -24,6 +24,8 @@ initDb();
 const app = express();
 const port = Number(process.env.PORT || 3000);
 let serverInstance = null;
+let activePort = port;
+const LISTEN_HOST = "127.0.0.1";
 
 const allowedOrigins = new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`]);
 app.use(
@@ -61,6 +63,37 @@ function getAiConfig() {
     baseUrl: getSetting("ai_base_url"),
     model: getSetting("ai_model")
   });
+}
+
+function maskSecret(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (text.length <= 8) {
+    return `${text.slice(0, 1)}***${text.slice(-1)}`;
+  }
+  return `${text.slice(0, 4)}...${text.slice(-4)}`;
+}
+
+function serializeAiSettingsForClient() {
+  const cfg = getAiConfig();
+  return {
+    baseUrl: cfg.baseUrl,
+    model: cfg.model,
+    hasApiKey: Boolean(cfg.apiKey),
+    apiKeyMasked: maskSecret(getSetting("ai_api_key"))
+  };
+}
+
+function serializeProjectConfigForClient(projectId) {
+  const config = getProjectConfig(projectId);
+  return {
+    ...config,
+    ai_api_key_override: "",
+    has_ai_api_key_override: Boolean(String(config.ai_api_key_override || "").trim()),
+    ai_api_key_override_masked: maskSecret(config.ai_api_key_override)
+  };
 }
 
 function resolveAiConfigForProject(projectConfig) {
@@ -109,6 +142,7 @@ function getProjectConfig(projectId) {
 
 function upsertProjectConfig(projectId, payload) {
   const oldConfig = getProjectConfig(projectId);
+  const keepProjectApiKey = Boolean(payload.keep_ai_api_key_override);
   const next = {
     synopsis: typeof payload.synopsis === "string" ? payload.synopsis.trim() : oldConfig.synopsis,
     writing_style: typeof payload.writing_style === "string" ? payload.writing_style.trim() : oldConfig.writing_style,
@@ -123,7 +157,9 @@ function upsertProjectConfig(projectId, payload) {
         ? payload.ai_base_url_override.trim()
         : oldConfig.ai_base_url_override,
     ai_api_key_override:
-      typeof payload.ai_api_key_override === "string"
+      keepProjectApiKey
+        ? oldConfig.ai_api_key_override
+        : typeof payload.ai_api_key_override === "string"
         ? payload.ai_api_key_override.trim()
         : oldConfig.ai_api_key_override,
     ai_model_override:
@@ -279,6 +315,13 @@ function saveProjectMemoryStatus(projectId, payload = {}) {
   return getProjectMemoryStatus(projectId);
 }
 
+/**
+ * Execute a memory verification round-trip against the configured AI provider.
+ * Persists status and immutable audit logs in SQLite.
+ * @param {number} projectId
+ * @param {"check"|"resend"} [reason="check"]
+ * @returns {Promise<object>}
+ */
 async function runProjectMemoryCheck(projectId, reason = "check") {
   const snapshot = buildProjectMemorySnapshot(projectId);
   const aiConfig = resolveAiConfigForProject(snapshot.projectConfig);
@@ -371,6 +414,12 @@ function setCheatSessionCompleted(sessionId, projectId) {
     .get(sessionId);
 }
 
+/**
+ * Replace project context records with AI-generated results in one transaction.
+ * @param {number} projectId
+ * @param {{characters?: Array, locations?: Array, rules?: Array}} payload
+ * @returns {void}
+ */
 function applyGeneratedContextToProject(projectId, payload = {}) {
   const runReplace = db.transaction((pid, data) => {
     db.prepare("DELETE FROM characters WHERE project_id = ?").run(pid);
@@ -408,48 +457,45 @@ function buildCheatTranscript(messages) {
     .join("\n");
 }
 
-function contextConfig(type) {
-  if (type === "character") {
-    return {
-      table: "characters",
-      fields: ["name", "profile"],
-      required: "name"
-    };
+const CONTEXT_HANDLERS = {
+  character: {
+    required: "name",
+    firstField: "name",
+    secondField: "profile",
+    insert: db.prepare("INSERT INTO characters (project_id, name, profile) VALUES (?, ?, ?)"),
+    selectById: db.prepare("SELECT id, name, profile FROM characters WHERE id = ?"),
+    deleteById: db.prepare("DELETE FROM characters WHERE id = ? AND project_id = ?")
+  },
+  location: {
+    required: "name",
+    firstField: "name",
+    secondField: "description",
+    insert: db.prepare("INSERT INTO locations (project_id, name, description) VALUES (?, ?, ?)"),
+    selectById: db.prepare("SELECT id, name, description FROM locations WHERE id = ?"),
+    deleteById: db.prepare("DELETE FROM locations WHERE id = ? AND project_id = ?")
+  },
+  rule: {
+    required: "key_name",
+    firstField: "key_name",
+    secondField: "value_text",
+    insert: db.prepare("INSERT INTO world_settings (project_id, key_name, value_text) VALUES (?, ?, ?)"),
+    selectById: db.prepare("SELECT id, key_name, value_text FROM world_settings WHERE id = ?"),
+    deleteById: db.prepare("DELETE FROM world_settings WHERE id = ? AND project_id = ?")
   }
-  if (type === "location") {
-    return {
-      table: "locations",
-      fields: ["name", "description"],
-      required: "name"
-    };
-  }
-  if (type === "rule") {
-    return {
-      table: "world_settings",
-      fields: ["key_name", "value_text"],
-      required: "key_name"
-    };
-  }
-  return null;
-}
+};
 
 app.get("/api/health", (req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
+  res.json({ ok: true, time: new Date().toISOString(), host: LISTEN_HOST, port: activePort });
 });
 
 app.get("/api/settings/ai", (req, res) => {
-  const cfg = getAiConfig();
-  res.json({
-    baseUrl: cfg.baseUrl,
-    model: cfg.model,
-    apiKey: getSetting("ai_api_key"),
-    hasApiKey: Boolean(cfg.apiKey)
-  });
+  res.json(serializeAiSettingsForClient());
 });
 
 app.put("/api/settings/ai", (req, res) => {
   const baseUrl = String(req.body?.baseUrl || "").trim();
   const model = String(req.body?.model || "").trim();
+  const keepApiKey = Boolean(req.body?.keepApiKey);
   const apiKey = String(req.body?.apiKey || "").trim();
 
   if (baseUrl) {
@@ -458,21 +504,25 @@ app.put("/api/settings/ai", (req, res) => {
   if (model) {
     setSetting("ai_model", model);
   }
-  setSetting("ai_api_key", apiKey);
+  if (!keepApiKey) {
+    setSetting("ai_api_key", apiKey);
+  }
 
   const cfg = getAiConfig();
   res.json({
     ok: true,
     baseUrl: cfg.baseUrl,
     model: cfg.model,
-    hasApiKey: Boolean(cfg.apiKey)
+    hasApiKey: Boolean(cfg.apiKey),
+    apiKeyMasked: maskSecret(getSetting("ai_api_key"))
   });
 });
 
 app.post("/api/settings/ai/test", async (req, res) => {
   const payload = req.body || {};
+  const keepApiKey = Boolean(payload.keepApiKey);
   const cfg = normalizeAiConfig({
-    apiKey: typeof payload.apiKey === "string" ? payload.apiKey.trim() : getSetting("ai_api_key"),
+    apiKey: keepApiKey ? getSetting("ai_api_key") : typeof payload.apiKey === "string" ? payload.apiKey.trim() : getSetting("ai_api_key"),
     baseUrl: typeof payload.baseUrl === "string" ? payload.baseUrl.trim() : getSetting("ai_base_url"),
     model: typeof payload.model === "string" ? payload.model.trim() : getSetting("ai_model")
   });
@@ -725,19 +775,27 @@ app.delete("/api/projects/:projectId", (req, res) => {
       .all(pid)
       .map((item) => Number(item.id));
 
+    const deleteChapterSummaryById = db.prepare("DELETE FROM chapter_summaries WHERE chapter_id = ?");
+    const deleteGenerationLogByChapterId = db.prepare("DELETE FROM generation_logs WHERE chapter_id = ?");
+    const deleteCheatModeMessagesBySessionId = db.prepare("DELETE FROM cheat_mode_messages WHERE session_id = ?");
+    const deleteCheatModeSessionById = db.prepare("DELETE FROM cheat_mode_sessions WHERE id = ?");
+
     if (cids.length > 0) {
-      const placeholders = cids.map(() => "?").join(",");
-      db.prepare(`DELETE FROM chapter_summaries WHERE chapter_id IN (${placeholders})`).run(...cids);
-      db.prepare(`DELETE FROM generation_logs WHERE chapter_id IN (${placeholders})`).run(...cids);
+      cids.forEach((chapterId) => {
+        deleteChapterSummaryById.run(chapterId);
+        deleteGenerationLogByChapterId.run(chapterId);
+      });
     }
     if (cheatSessionIds.length > 0) {
-      const placeholders = cheatSessionIds.map(() => "?").join(",");
-      db.prepare(`DELETE FROM cheat_mode_messages WHERE session_id IN (${placeholders})`).run(...cheatSessionIds);
-      db.prepare(`DELETE FROM cheat_mode_sessions WHERE id IN (${placeholders})`).run(...cheatSessionIds);
+      cheatSessionIds.forEach((sessionId) => {
+        deleteCheatModeMessagesBySessionId.run(sessionId);
+        deleteCheatModeSessionById.run(sessionId);
+      });
     }
     db.prepare("DELETE FROM generation_logs WHERE project_id = ?").run(pid);
     db.prepare("DELETE FROM story_facts WHERE project_id = ?").run(pid);
     db.prepare("DELETE FROM project_chat_messages WHERE project_id = ?").run(pid);
+    db.prepare("DELETE FROM project_memory_logs WHERE project_id = ?").run(pid);
     db.prepare("DELETE FROM project_memory_status WHERE project_id = ?").run(pid);
     db.prepare("DELETE FROM characters WHERE project_id = ?").run(pid);
     db.prepare("DELETE FROM locations WHERE project_id = ?").run(pid);
@@ -759,7 +817,7 @@ app.get("/api/projects/:projectId/config", (req, res) => {
   if (!projectExists(projectId)) {
     return res.status(404).json({ error: "project not found" });
   }
-  res.json(getProjectConfig(projectId));
+  res.json(serializeProjectConfigForClient(projectId));
 });
 
 app.put("/api/projects/:projectId/config", (req, res) => {
@@ -771,7 +829,10 @@ app.put("/api/projects/:projectId/config", (req, res) => {
     return res.status(404).json({ error: "project not found" });
   }
   const updated = upsertProjectConfig(projectId, req.body || {});
-  res.json(updated);
+  res.json({
+    ...serializeProjectConfigForClient(projectId),
+    updated_at: updated.updated_at
+  });
 });
 
 app.post("/api/projects/:projectId/ai/test", async (req, res) => {
@@ -784,6 +845,7 @@ app.post("/api/projects/:projectId/ai/test", async (req, res) => {
   }
 
   const current = getProjectConfig(projectId);
+  const keepProjectApiKey = Boolean(req.body?.keep_ai_api_key_override);
   const merged = {
     ...current,
     ai_base_url_override:
@@ -791,9 +853,11 @@ app.post("/api/projects/:projectId/ai/test", async (req, res) => {
         ? req.body.ai_base_url_override.trim()
         : current.ai_base_url_override,
     ai_api_key_override:
-      typeof req.body?.ai_api_key_override === "string"
-        ? req.body.ai_api_key_override.trim()
-        : current.ai_api_key_override,
+      keepProjectApiKey
+        ? current.ai_api_key_override
+        : typeof req.body?.ai_api_key_override === "string"
+          ? req.body.ai_api_key_override.trim()
+          : current.ai_api_key_override,
     ai_model_override:
       typeof req.body?.ai_model_override === "string"
         ? req.body.ai_model_override.trim()
@@ -997,6 +1061,9 @@ app.get("/api/projects/:projectId/chapters", (req, res) => {
   if (!projectId) {
     return badRequest(res, "invalid projectId");
   }
+  if (!projectExists(projectId)) {
+    return res.status(404).json({ error: "project not found" });
+  }
 
   const rows = db
     .prepare(
@@ -1011,6 +1078,9 @@ app.post("/api/projects/:projectId/chapters", (req, res) => {
   const title = String(req.body?.title || "").trim() || "Untitled Chapter";
   if (!projectId) {
     return badRequest(res, "invalid projectId");
+  }
+  if (!projectExists(projectId)) {
+    return res.status(404).json({ error: "project not found" });
   }
 
   const maxOrderRow = db
@@ -1243,21 +1313,17 @@ app.post("/api/projects/:projectId/chat/messages", async (req, res) => {
   };
   const history = getProjectChatMessages(projectId, 20);
 
-  const insertMessage = db.prepare(
-    "INSERT INTO project_chat_messages (project_id, role, content, source, created_at) VALUES (?, ?, ?, ?, datetime('now'))"
-  );
-  const userInsert = insertMessage.run(projectId, "user", message, "user");
-  const userMessageRow = db
-    .prepare("SELECT id, project_id, role, content, source, created_at FROM project_chat_messages WHERE id = ?")
-    .get(userInsert.lastInsertRowid);
-
   try {
     const aiConfig = resolveAiConfigForProject(projectConfig);
     const chatResult = await generateProjectChatReply(
       {
         projectName: project?.name || "",
         projectDescription: project?.description || "",
-        projectConfig: {},
+        projectConfig: {
+          synopsis: projectConfig.synopsis || "",
+          writing_style: projectConfig.writing_style || "",
+          narrative_pov: projectConfig.narrative_pov || ""
+        },
         outlineText: projectConfig.outline_text || "",
         characters: context.characters,
         locations: context.locations,
@@ -1268,15 +1334,26 @@ app.post("/api/projects/:projectId/chat/messages", async (req, res) => {
       aiConfig
     );
 
-    const assistantInsert = insertMessage.run(
-      projectId,
-      "assistant",
-      String(chatResult.reply || "").trim(),
-      String(chatResult.source || "").trim()
+    const insertMessage = db.prepare(
+      "INSERT INTO project_chat_messages (project_id, role, content, source, created_at) VALUES (?, ?, ?, ?, datetime('now'))"
     );
-    const assistantMessageRow = db
-      .prepare("SELECT id, project_id, role, content, source, created_at FROM project_chat_messages WHERE id = ?")
-      .get(assistantInsert.lastInsertRowid);
+    const selectMessage = db.prepare(
+      "SELECT id, project_id, role, content, source, created_at FROM project_chat_messages WHERE id = ?"
+    );
+    const persistMessages = db.transaction(() => {
+      const userInsert = insertMessage.run(projectId, "user", message, "user");
+      const assistantInsert = insertMessage.run(
+        projectId,
+        "assistant",
+        String(chatResult.reply || "").trim(),
+        String(chatResult.source || "").trim()
+      );
+      return {
+        userMessageRow: selectMessage.get(userInsert.lastInsertRowid),
+        assistantMessageRow: selectMessage.get(assistantInsert.lastInsertRowid)
+      };
+    });
+    const { userMessageRow, assistantMessageRow } = persistMessages();
 
     return res.json({
       ok: true,
@@ -1382,6 +1459,9 @@ app.get("/api/projects/:projectId/context", (req, res) => {
   if (!projectId) {
     return badRequest(res, "invalid projectId");
   }
+  if (!projectExists(projectId)) {
+    return res.status(404).json({ error: "project not found" });
+  }
 
   const characters = db
     .prepare("SELECT id, name, profile FROM characters WHERE project_id = ? ORDER BY id DESC LIMIT 50")
@@ -1402,26 +1482,25 @@ app.post("/api/projects/:projectId/context/:type", (req, res) => {
   if (!projectId) {
     return badRequest(res, "invalid projectId");
   }
+  if (!projectExists(projectId)) {
+    return res.status(404).json({ error: "project not found" });
+  }
 
-  const config = contextConfig(type);
+  const config = CONTEXT_HANDLERS[type];
   if (!config) {
     return badRequest(res, "type must be one of: character, location, rule");
   }
 
-  const firstField = config.fields[0];
-  const secondField = config.fields[1];
+  const firstField = config.firstField;
+  const secondField = config.secondField;
   const firstValue = String(req.body?.[firstField] || "").trim();
   const secondValue = String(req.body?.[secondField] || "").trim();
   if (!firstValue) {
     return badRequest(res, `${config.required} is required`);
   }
 
-  const result = db
-    .prepare(`INSERT INTO ${config.table} (project_id, ${firstField}, ${secondField}) VALUES (?, ?, ?)`)
-    .run(projectId, firstValue, secondValue);
-  const row = db
-    .prepare(`SELECT id, ${firstField}, ${secondField} FROM ${config.table} WHERE id = ?`)
-    .get(result.lastInsertRowid);
+  const result = config.insert.run(projectId, firstValue, secondValue);
+  const row = config.selectById.get(result.lastInsertRowid);
   return res.status(201).json(row);
 });
 
@@ -1432,15 +1511,16 @@ app.delete("/api/projects/:projectId/context/:type/:itemId", (req, res) => {
   if (!projectId || !itemId) {
     return badRequest(res, "invalid projectId or itemId");
   }
+  if (!projectExists(projectId)) {
+    return res.status(404).json({ error: "project not found" });
+  }
 
-  const config = contextConfig(type);
+  const config = CONTEXT_HANDLERS[type];
   if (!config) {
     return badRequest(res, "type must be one of: character, location, rule");
   }
 
-  const result = db
-    .prepare(`DELETE FROM ${config.table} WHERE id = ? AND project_id = ?`)
-    .run(itemId, projectId);
+  const result = config.deleteById.run(itemId, projectId);
   if (result.changes === 0) {
     return res.status(404).json({ error: "context item not found" });
   }
@@ -1527,13 +1607,6 @@ app.post("/api/projects/:projectId/ai/compose", async (req, res) => {
     content: item.content
   }));
 
-  const insertMessage = db.prepare(
-    "INSERT INTO project_chat_messages (project_id, role, content, source, created_at) VALUES (?, ?, ?, ?, datetime('now'))"
-  );
-  if (instruction) {
-    insertMessage.run(projectId, "user", instruction, "user");
-  }
-
   try {
     const aiConfig = resolveAiConfigForProject(projectConfig);
     const generated = await generateNovelText(
@@ -1557,11 +1630,20 @@ app.post("/api/projects/:projectId/ai/compose", async (req, res) => {
       aiConfig
     );
 
-    db.prepare(
+    const insertLog = db.prepare(
       "INSERT INTO generation_logs (project_id, chapter_id, action, prompt_text, output_text) VALUES (?, ?, ?, ?, ?)"
-    ).run(projectId, chapterId, `compose:${action}`, generated.promptText, generated.output);
-
-    insertMessage.run(projectId, "assistant", generated.output, String(generated.source || ""));
+    );
+    const insertMessage = db.prepare(
+      "INSERT INTO project_chat_messages (project_id, role, content, source, created_at) VALUES (?, ?, ?, ?, datetime('now'))"
+    );
+    const persistComposeResult = db.transaction(() => {
+      insertLog.run(projectId, chapterId, `compose:${action}`, generated.promptText, generated.output);
+      if (instruction) {
+        insertMessage.run(projectId, "user", instruction, "user");
+      }
+      insertMessage.run(projectId, "assistant", generated.output, String(generated.source || ""));
+    });
+    persistComposeResult();
 
     res.json({
       output: generated.output,
@@ -1655,27 +1737,49 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
-function startServer(listenPort = port) {
+/**
+ * Start Express server on loopback host.
+ * @param {number} [listenPort=port]
+ * @param {{allowPortFallback?: boolean}} [options={}]
+ * @returns {Promise<import("http").Server>}
+ */
+function startServer(listenPort = port, options = {}) {
   if (serverInstance) {
     return Promise.resolve(serverInstance);
   }
 
-  return new Promise((resolve, reject) => {
-    const candidate = app.listen(listenPort);
-    const onError = (error) => {
-      candidate.removeListener("listening", onListening);
-      reject(error);
-    };
-    const onListening = () => {
-      candidate.removeListener("error", onError);
-      serverInstance = candidate;
-      resolve(candidate);
-    };
-    candidate.once("error", onError);
-    candidate.once("listening", onListening);
-  });
+  const allowPortFallback = Boolean(options.allowPortFallback);
+
+  function tryListen(targetPort, fallbackAllowed) {
+    return new Promise((resolve, reject) => {
+      const candidate = app.listen(targetPort, LISTEN_HOST);
+      const onError = (error) => {
+        candidate.removeListener("listening", onListening);
+        if (fallbackAllowed && error && error.code === "EADDRINUSE" && Number(targetPort) !== 0) {
+          resolve(tryListen(0, false));
+          return;
+        }
+        reject(error);
+      };
+      const onListening = () => {
+        candidate.removeListener("error", onError);
+        serverInstance = candidate;
+        const address = candidate.address();
+        activePort = address && typeof address === "object" ? Number(address.port) : Number(targetPort);
+        resolve(candidate);
+      };
+      candidate.once("error", onError);
+      candidate.once("listening", onListening);
+    });
+  }
+
+  return tryListen(listenPort, allowPortFallback);
 }
 
+/**
+ * Stop the active Express server instance.
+ * @returns {Promise<void>}
+ */
 function stopServer() {
   return new Promise((resolve, reject) => {
     if (!serverInstance) {
@@ -1696,7 +1800,7 @@ function stopServer() {
 if (require.main === module) {
   startServer()
     .then(() => {
-      console.log(`Demo server is running on http://localhost:${port}`);
+      console.log(`DreamWeaver server is running on http://${LISTEN_HOST}:${activePort}`);
     })
     .catch((error) => {
       console.error(`Failed to start server: ${error.message}`);
@@ -1708,7 +1812,8 @@ module.exports = {
   app,
   startServer,
   stopServer,
-  port
+  port,
+  getActivePort: () => activePort
 };
 
 

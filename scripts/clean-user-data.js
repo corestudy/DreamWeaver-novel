@@ -1,13 +1,27 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
 
 const baseDir = path.resolve(__dirname, "..", "storage");
 const targets = [
-  path.join(baseDir, "novel_demo.sqlite"),
-  path.join(baseDir, "novel_demo.sqlite-wal"),
-  path.join(baseDir, "novel_demo.sqlite-shm")
+  path.join(baseDir, "dreamweaver_novel.sqlite"),
+  path.join(baseDir, "dreamweaver_novel.sqlite-wal"),
+  path.join(baseDir, "dreamweaver_novel.sqlite-shm")
 ];
+
+const CLEANUP_SQL = {
+  project_chat_messages: "DELETE FROM project_chat_messages",
+  generation_logs: "DELETE FROM generation_logs",
+  chapter_summaries: "DELETE FROM chapter_summaries",
+  story_facts: "DELETE FROM story_facts",
+  chapters: "DELETE FROM chapters",
+  characters: "DELETE FROM characters",
+  locations: "DELETE FROM locations",
+  world_settings: "DELETE FROM world_settings",
+  project_configs: "DELETE FROM project_configs",
+  projects: "DELETE FROM projects",
+  app_settings: "DELETE FROM app_settings"
+};
 
 let hasLockedFile = false;
 
@@ -32,7 +46,7 @@ if (!hasLockedFile) {
   process.exit();
 }
 
-const dbPath = path.join(baseDir, "novel_demo.sqlite");
+const dbPath = path.join(baseDir, "dreamweaver_novel.sqlite");
 if (!fs.existsSync(dbPath)) {
   process.exit();
 }
@@ -43,30 +57,31 @@ try {
   db.pragma("journal_mode = WAL");
   db.pragma("busy_timeout = 3000");
 
-  const tableExists = (name) => {
+  /**
+   * Check whether a table exists in the current database.
+   * @param {string} tableName
+   * @returns {boolean}
+   */
+  const tableExists = (tableName) => {
     const row = db
       .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?")
-      .get(name);
+      .get(tableName);
     return Boolean(row);
   };
 
-  const deleteIfExists = (name) => {
-    if (tableExists(name)) {
-      db.prepare(`DELETE FROM ${name}`).run();
+  /**
+   * Delete table rows using a static SQL whitelist.
+   * @param {keyof typeof CLEANUP_SQL} tableName
+   */
+  const deleteIfExists = (tableName) => {
+    if (tableExists(tableName)) {
+      db.prepare(CLEANUP_SQL[tableName]).run();
     }
   };
 
-  deleteIfExists("project_chat_messages");
-  deleteIfExists("generation_logs");
-  deleteIfExists("chapter_summaries");
-  deleteIfExists("story_facts");
-  deleteIfExists("chapters");
-  deleteIfExists("characters");
-  deleteIfExists("locations");
-  deleteIfExists("world_settings");
-  deleteIfExists("project_configs");
-  deleteIfExists("projects");
-  deleteIfExists("app_settings");
+  Object.keys(CLEANUP_SQL).forEach((tableName) => {
+    deleteIfExists(tableName);
+  });
 
   db.pragma("wal_checkpoint(TRUNCATE)");
   db.exec("VACUUM");

@@ -1,4 +1,4 @@
-const VENDOR_PRESETS = {
+﻿const VENDOR_PRESETS = {
   openai: {
     label: "OpenAI",
     baseUrl: "https://api.openai.com/v1",
@@ -110,7 +110,7 @@ function fillModelPresetOptions(vendor, selectedModel = "") {
   const models = Array.isArray(preset.models) ? preset.models : [];
   const cleanSelected = String(selectedModel || "").trim();
 
-  select.innerHTML = "";
+  select.replaceChildren();
 
   if (models.length === 0) {
     const option = document.createElement("option");
@@ -170,7 +170,10 @@ function fillForm(data) {
   byId("vendorSelect").value = vendor;
   byId("settingBaseUrl").value = baseUrl;
   byId("settingModel").value = model;
-  byId("settingApiKey").value = data.apiKey || "";
+  byId("settingApiKey").value = "";
+  byId("settingApiKey").placeholder = data.hasApiKey
+    ? `已保存：${data.apiKeyMasked || "已隐藏敏感信息"}`
+    : "留空表示不修改 API Key";
   fillModelPresetOptions(vendor, model);
   byId("settingStatus").textContent = data.hasApiKey ? "默认 Key 已配置，可直接使用" : "默认 Key 未配置";
 }
@@ -178,10 +181,12 @@ function fillForm(data) {
 function readForm(clearKey = false) {
   const modelInput = byId("settingModel").value.trim();
   const modelPreset = byId("modelPresetSelect").value.trim();
+  const apiKeyInput = byId("settingApiKey").value.trim();
   return {
     baseUrl: byId("settingBaseUrl").value.trim(),
     model: modelInput || modelPreset,
-    apiKey: clearKey ? "" : byId("settingApiKey").value.trim()
+    apiKey: clearKey ? "" : apiKeyInput,
+    keepApiKey: !clearKey && !apiKeyInput
   };
 }
 
@@ -198,6 +203,9 @@ async function saveSettings(clearKey = false) {
   if (clearKey) {
     byId("settingApiKey").value = "";
   }
+  byId("settingApiKey").placeholder = data.hasApiKey
+    ? `已保存：${data.apiKeyMasked || "已隐藏敏感信息"}`
+    : "留空表示不修改 API Key";
   byId("settingStatus").textContent = data.hasApiKey
     ? "默认 API 已保存（Key 可用）"
     : "默认 API 已保存（当前无 Key）";

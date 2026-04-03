@@ -20,8 +20,10 @@ const state = {
     contextHash: "",
     checkedAt: null,
     syncedAt: null,
+    recentInjectedAt: null,
     source: "",
-    detail: ""
+    detail: "",
+    injectionSources: ["outline", "settings", "recent_summaries"]
   }
 };
 
@@ -121,7 +123,7 @@ function fillProjectConfigForm() {
   byId("cfgLengthWs").value = cfg.default_target_length || "约200-500字";
 
   const usingBookApi =
-    Boolean(cfg.ai_base_url_override) || Boolean(cfg.ai_api_key_override) || Boolean(cfg.ai_model_override);
+    Boolean(cfg.ai_base_url_override) || Boolean(cfg.has_ai_api_key_override) || Boolean(cfg.ai_model_override);
   byId("cfgStatus").textContent = usingBookApi ? "当前 AI 策略：本书专属 API 优先" : "当前 AI 策略：默认 API";
 }
 
@@ -151,7 +153,7 @@ async function saveProjectConfig(payload = readProjectConfigForm()) {
 
 function renderChapters() {
   const select = byId("chapterSelect");
-  select.innerHTML = "";
+  select.replaceChildren();
   state.chapters.forEach((chapter) => {
     const option = document.createElement("option");
     option.value = chapter.id;
@@ -170,21 +172,42 @@ function fillEditor(chapter) {
 
 function renderContextList(type, targetId, list, titleField, detailField) {
   const target = byId(targetId);
-  target.innerHTML = "";
+  target.replaceChildren();
   if (!Array.isArray(list) || list.length === 0) {
     const li = document.createElement("li");
-    li.innerHTML = "<span class='context-item-text'>暂无数据</span>";
+    const span = document.createElement("span");
+    span.className = "context-item-text";
+    span.textContent = "暂无设定";
+    li.appendChild(span);
     target.appendChild(li);
     return;
   }
 
   list.forEach((item) => {
-    const detail = item[detailField] ? `<br><span class="muted">${item[detailField]}</span>` : "";
     const li = document.createElement("li");
-    li.innerHTML = `
-      <div class="context-item-text"><strong>${item[titleField]}</strong>${detail}</div>
-      <button class="context-item-remove" data-type="${type}" data-id="${item.id}">退场删除 ✦</button>
-    `;
+    const textWrap = document.createElement("div");
+    textWrap.className = "context-item-text";
+
+    const strong = document.createElement("strong");
+    strong.textContent = String(item[titleField] || "");
+    textWrap.appendChild(strong);
+
+    if (item[detailField]) {
+      textWrap.appendChild(document.createElement("br"));
+      const detailSpan = document.createElement("span");
+      detailSpan.className = "muted";
+      detailSpan.textContent = String(item[detailField] || "");
+      textWrap.appendChild(detailSpan);
+    }
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "context-item-remove";
+    removeBtn.dataset.type = type;
+    removeBtn.dataset.id = String(item.id);
+    removeBtn.textContent = "退场删除 ✦";
+
+    li.appendChild(textWrap);
+    li.appendChild(removeBtn);
     target.appendChild(li);
   });
 }
@@ -197,27 +220,38 @@ function renderContext() {
 
 function renderFacts() {
   const list = byId("factList");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!Array.isArray(state.facts) || state.facts.length === 0) {
     const li = document.createElement("li");
-    li.innerHTML = "<span class='context-item-text'>暂无事实</span>";
+    const span = document.createElement("span");
+    span.className = "context-item-text";
+    span.textContent = "暂无事实";
+    li.appendChild(span);
     list.appendChild(li);
     return;
   }
 
   state.facts.forEach((fact) => {
     const li = document.createElement("li");
-    li.innerHTML = `
-      <div class="context-item-text">${fact.fact_text}</div>
-      <button class="context-item-remove" data-type="fact" data-id="${fact.id}">退场删除 ✦</button>
-    `;
+    const textWrap = document.createElement("div");
+    textWrap.className = "context-item-text";
+    textWrap.textContent = String(fact.fact_text || "");
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "context-item-remove";
+    removeBtn.dataset.type = "fact";
+    removeBtn.dataset.id = String(fact.id);
+    removeBtn.textContent = "退场删除 ✦";
+
+    li.appendChild(textWrap);
+    li.appendChild(removeBtn);
     list.appendChild(li);
   });
 }
 
 function renderLogs() {
   const list = byId("logList");
-  list.innerHTML = "";
+  list.replaceChildren();
   if (!Array.isArray(state.logs) || state.logs.length === 0) {
     const li = document.createElement("li");
     li.textContent = "暂无生成记录";
@@ -246,12 +280,22 @@ function renderLogs() {
 function renderWorkspaceChatMessages() {
   const list = byId("workspaceChatList");
   if (!list) return;
-  list.innerHTML = "";
+  list.replaceChildren();
 
   if (!Array.isArray(state.chatMessages) || state.chatMessages.length === 0) {
     const li = document.createElement("li");
     li.className = "chat-item assistant";
-    li.innerHTML = "<div class='chat-role'>AI</div><div class='chat-bubble'>暂无本书聊天记录</div>";
+
+    const roleEl = document.createElement("div");
+    roleEl.className = "chat-role";
+    roleEl.textContent = "AI";
+
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "chat-bubble";
+    bubbleEl.textContent = "暂无对话，开始提问吧。";
+
+    li.appendChild(roleEl);
+    li.appendChild(bubbleEl);
     list.appendChild(li);
     return;
   }
@@ -259,12 +303,19 @@ function renderWorkspaceChatMessages() {
   state.chatMessages.forEach((item) => {
     const role = item.role === "user" ? "user" : "assistant";
     const li = document.createElement("li");
-    li.className = `chat-item ${role}`;
-    const who = role === "user" ? "我" : "AI";
-    li.innerHTML = `
-      <div class="chat-role">${who}${item.created_at ? ` · ${item.created_at}` : ""}</div>
-      <div class="chat-bubble">${String(item.content || "").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-    `;
+    li.className = "chat-item " + role;
+    const who = role === "user" ? "你" : "AI";
+
+    const roleEl = document.createElement("div");
+    roleEl.className = "chat-role";
+    roleEl.textContent = item.created_at ? (who + " · " + item.created_at) : who;
+
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "chat-bubble";
+    bubbleEl.textContent = String(item.content || "");
+
+    li.appendChild(roleEl);
+    li.appendChild(bubbleEl);
     list.appendChild(li);
   });
 
@@ -307,12 +358,21 @@ function renderMemoryStatus() {
 
   badge.textContent = `状态：${statusText}`;
   badge.className = `badge memory-status-badge ${statusClass}`;
-  detail.textContent = memory.detail || "用于校验 AI 是否读取了本书最新上下文（大纲 + 设定资料）。";
+
+  const sourceHint = (memory.injectionSources || ["outline", "settings", "recent_summaries"])
+    .map((item) => {
+      if (item === "outline") return "大纲";
+      if (item === "settings") return "设定资料";
+      if (item === "recent_summaries") return "最近章节摘要";
+      return item;
+    })
+    .join(" + ");
+  detail.textContent = `${memory.detail || "用于校验 AI 是否读取了本书最新上下文。"}（来源：${sourceHint}）`;
 
   const hashShort = memory.contextHash ? String(memory.contextHash).slice(0, 12) : "-";
   meta.textContent = `最近检查：${formatMemoryTime(memory.checkedAt)} ｜ 最近同步：${formatMemoryTime(
     memory.syncedAt
-  )} ｜ 哈希：${hashShort}`;
+  )} ｜ 最近注入：${formatMemoryTime(memory.recentInjectedAt)} ｜ 哈希：${hashShort}`;
 }
 
 async function loadMemoryStatus() {
@@ -618,6 +678,14 @@ async function runAiAction() {
 
   applyAiComposeResult(result);
   await loadLogs();
+
+  const composeInfo = byId("composeContextInfo");
+  if (composeInfo) {
+    const used = Boolean(state.memoryStatus?.upToDate);
+    composeInfo.textContent = used
+      ? `本次生成上下文：已使用（检查 ${formatMemoryTime(state.memoryStatus?.checkedAt)}）`
+      : "本次生成上下文：未确认";
+  }
 
   if (action === "write" && String(result.output || "").trim()) {
     insertAtCursor(result.output);

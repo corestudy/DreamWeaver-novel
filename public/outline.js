@@ -85,22 +85,43 @@ function renderOutlineStatus(outlineRow) {
 
 function renderContextList(type, targetId, list, titleField, detailField) {
   const target = byId(targetId);
-  target.innerHTML = "";
+  target.replaceChildren();
 
   if (!Array.isArray(list) || list.length === 0) {
     const li = document.createElement("li");
-    li.innerHTML = "<span class='context-item-text'>暂无数据</span>";
+    const span = document.createElement("span");
+    span.className = "context-item-text";
+    span.textContent = "暂无设定";
+    li.appendChild(span);
     target.appendChild(li);
     return;
   }
 
   list.forEach((item) => {
-    const detail = item[detailField] ? `<br><span class="muted">${item[detailField]}</span>` : "";
     const li = document.createElement("li");
-    li.innerHTML = `
-      <div class="context-item-text"><strong>${item[titleField]}</strong>${detail}</div>
-      <button class="context-item-remove" data-type="${type}" data-id="${item.id}">退场删除 ✦</button>
-    `;
+    const textWrap = document.createElement("div");
+    textWrap.className = "context-item-text";
+
+    const strong = document.createElement("strong");
+    strong.textContent = String(item[titleField] || "");
+    textWrap.appendChild(strong);
+
+    if (item[detailField]) {
+      textWrap.appendChild(document.createElement("br"));
+      const detailSpan = document.createElement("span");
+      detailSpan.className = "muted";
+      detailSpan.textContent = String(item[detailField] || "");
+      textWrap.appendChild(detailSpan);
+    }
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "context-item-remove";
+    removeBtn.dataset.type = type;
+    removeBtn.dataset.id = String(item.id);
+    removeBtn.textContent = "退场删除 ✦";
+
+    li.appendChild(textWrap);
+    li.appendChild(removeBtn);
     target.appendChild(li);
   });
 }

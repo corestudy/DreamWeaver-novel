@@ -8,15 +8,47 @@ if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = path.join(dataDir, "novel_demo.sqlite");
+const dbPath = path.join(dataDir, "dreamweaver_novel.sqlite");
 const db = new Database(dbPath);
 db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
 
-function ensureColumn(tableName, columnName, definition) {
-  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+const TABLE_INFO_SQL = {
+  projects: "PRAGMA table_info(projects)",
+  project_configs: "PRAGMA table_info(project_configs)"
+};
+
+const COLUMN_ALTER_SQL = {
+  projects: {
+    description: "ALTER TABLE projects ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+    cover_color: "ALTER TABLE projects ADD COLUMN cover_color TEXT NOT NULL DEFAULT '#0f766e'",
+    cover_image: "ALTER TABLE projects ADD COLUMN cover_image TEXT NOT NULL DEFAULT ''"
+  },
+  project_configs: {
+    ai_base_url_override: "ALTER TABLE project_configs ADD COLUMN ai_base_url_override TEXT NOT NULL DEFAULT ''",
+    ai_api_key_override: "ALTER TABLE project_configs ADD COLUMN ai_api_key_override TEXT NOT NULL DEFAULT ''",
+    outline_text: "ALTER TABLE project_configs ADD COLUMN outline_text TEXT NOT NULL DEFAULT ''",
+    outline_uploaded: "ALTER TABLE project_configs ADD COLUMN outline_uploaded INTEGER NOT NULL DEFAULT 0",
+    outline_uploaded_at: "ALTER TABLE project_configs ADD COLUMN outline_uploaded_at TEXT"
+  }
+};
+
+/**
+ * Ensure a known schema column exists.
+ * Only allows whitelisted table/column pairs to prevent dynamic SQL injection.
+ * @param {keyof typeof TABLE_INFO_SQL} tableName
+ * @param {string} columnName
+ */
+function ensureColumn(tableName, columnName) {
+  const tableInfoSql = TABLE_INFO_SQL[tableName];
+  const alterSql = COLUMN_ALTER_SQL[tableName]?.[columnName];
+  if (!tableInfoSql || !alterSql) {
+    throw new Error(`Unsupported schema migration target: ${tableName}.${columnName}`);
+  }
+  const columns = db.prepare(tableInfoSql).all();
   const exists = columns.some((item) => item.name === columnName);
   if (!exists) {
-    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+    db.exec(alterSql);
   }
 }
 
@@ -170,14 +202,14 @@ function initDb() {
     );
   `);
 
-  ensureColumn("projects", "description", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("projects", "cover_color", "TEXT NOT NULL DEFAULT '#0f766e'");
-  ensureColumn("projects", "cover_image", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("project_configs", "ai_base_url_override", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("project_configs", "ai_api_key_override", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("project_configs", "outline_text", "TEXT NOT NULL DEFAULT ''");
-  ensureColumn("project_configs", "outline_uploaded", "INTEGER NOT NULL DEFAULT 0");
-  ensureColumn("project_configs", "outline_uploaded_at", "TEXT");
+  ensureColumn("projects", "description");
+  ensureColumn("projects", "cover_color");
+  ensureColumn("projects", "cover_image");
+  ensureColumn("project_configs", "ai_base_url_override");
+  ensureColumn("project_configs", "ai_api_key_override");
+  ensureColumn("project_configs", "outline_text");
+  ensureColumn("project_configs", "outline_uploaded");
+  ensureColumn("project_configs", "outline_uploaded_at");
 }
 
 module.exports = {

@@ -65,13 +65,19 @@ function setButtonLoading(buttonId, loading, loadingText) {
 
 function renderMessages() {
   const list = byId("cheatChatList");
-  list.innerHTML = "";
+  list.replaceChildren();
 
   if (!Array.isArray(state.messages) || state.messages.length === 0) {
     const li = document.createElement("li");
     li.className = "chat-item assistant";
-    li.innerHTML =
-      "<div class='chat-role'>AI</div><div class='chat-bubble'>先点击“开始访谈”，再告诉我你想写什么故事。</div>";
+    const roleEl = document.createElement("div");
+    roleEl.className = "chat-role";
+    roleEl.textContent = "AI";
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "chat-bubble";
+    bubbleEl.textContent = "暂无访谈记录，请先发送第一条问题。";
+    li.appendChild(roleEl);
+    li.appendChild(bubbleEl);
     list.appendChild(li);
     return;
   }
@@ -79,12 +85,19 @@ function renderMessages() {
   state.messages.forEach((item) => {
     const role = item.role === "user" ? "user" : "assistant";
     const li = document.createElement("li");
-    li.className = `chat-item ${role}`;
-    const who = role === "user" ? "我" : "AI";
-    li.innerHTML = `
-      <div class="chat-role">${who}${item.created_at ? ` · ${item.created_at}` : ""}</div>
-      <div class="chat-bubble">${String(item.content || "").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
-    `;
+    li.className = "chat-item " + role;
+    const who = role === "user" ? "你" : "AI";
+
+    const roleEl = document.createElement("div");
+    roleEl.className = "chat-role";
+    roleEl.textContent = item.created_at ? (who + " · " + item.created_at) : who;
+
+    const bubbleEl = document.createElement("div");
+    bubbleEl.className = "chat-bubble";
+    bubbleEl.textContent = String(item.content || "");
+
+    li.appendChild(roleEl);
+    li.appendChild(bubbleEl);
     list.appendChild(li);
   });
 

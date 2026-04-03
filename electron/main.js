@@ -1,4 +1,4 @@
-const path = require("path");
+﻿const path = require("path");
 const http = require("http");
 const fs = require("fs/promises");
 const { app, BrowserWindow, shell, dialog, ipcMain } = require("electron");
@@ -8,9 +8,34 @@ let activePort = DEFAULT_PORT;
 let stopServerRef = async () => {};
 let shuttingDown = false;
 let mainWindow = null;
+const MAX_EXPORT_BYTES = 8 * 1024 * 1024;
+const ALLOWED_EXPORT_EXTENSIONS = new Set(["txt", "md", "html"]);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Restrict IPC calls to the local workspace pages loaded by this app.
+ * @param {Electron.IpcMainInvokeEvent} event
+ * @returns {boolean}
+ */
+function isTrustedIpcSender(event) {
+  const frameUrl = String(event?.senderFrame?.url || "");
+  const localhostPrefix = `http://127.0.0.1:${activePort}/`;
+  const loopbackPrefix = `http://localhost:${activePort}/`;
+  return frameUrl.startsWith(localhostPrefix) || frameUrl.startsWith(loopbackPrefix);
+}
+
+/**
+ * Keep only a safe file base name to prevent path confusion in save dialogs.
+ * @param {string} rawName
+ * @returns {string}
+ */
+function sanitizeExportName(rawName) {
+  const normalized = String(rawName || "").trim().replace(/[\/:*?"<>|]/g, "_");
+  const baseName = path.basename(normalized || "novel-export.txt");
+  return baseName || "novel-export.txt";
 }
 
 function checkServer(port) {
@@ -69,10 +94,28 @@ function createMainWindow(port) {
   return window;
 }
 
-ipcMain.handle("export:saveFile", async (_event, payload = {}) => {
+/**
+ * Save exported text/markdown/html to user-selected path via native dialog.
+ * Renderer cannot directly access Node fs, so this IPC boundary is validated.
+ * @param {Electron.IpcMainInvokeEvent} event
+ * @param {{content?: string, defaultFileName?: string, extension?: string}} payload
+ * @returns {Promise<{canceled: boolean, filePath?: string}>}
+ */
+ipcMain.handle("export:saveFile", async (event, payload = {}) => {
+  if (!isTrustedIpcSender(event)) {
+    throw new Error("untrusted IPC sender");
+  }
+
   const content = String(payload.content || "");
-  const defaultFileName = String(payload.defaultFileName || "novel-export.txt").trim() || "novel-export.txt";
+  if (Buffer.byteLength(content, "utf8") > MAX_EXPORT_BYTES) {
+    throw new Error("export content too large");
+  }
+
+  const defaultFileName = sanitizeExportName(payload.defaultFileName || "novel-export.txt");
   const extension = String(payload.extension || "txt").toLowerCase();
+  if (!ALLOWED_EXPORT_EXTENSIONS.has(extension)) {
+    throw new Error("invalid export extension");
+  }
 
   const filters = [
     { name: "Text", extensions: ["txt"] },
@@ -99,18 +142,18 @@ ipcMain.handle("export:saveFile", async (_event, payload = {}) => {
 async function bootstrap() {
   process.env.NOVEL_DATA_DIR = path.join(app.getPath("userData"), "storage");
 
-  const { startServer, stopServer, port } = require(path.join(__dirname, "..", "server.js"));
-  const listenPort = Number(process.env.PORT || port || DEFAULT_PORT);
-  await startServer(listenPort);
-  activePort = listenPort;
+  const { startServer, stopServer, port, getActivePort } = require(path.join(__dirname, "..", "server.js"));
+  const preferPort = Number(process.env.PORT || port || DEFAULT_PORT);
+  await startServer(preferPort, { allowPortFallback: true });
+  activePort = typeof getActivePort === "function" ? Number(getActivePort() || preferPort) : preferPort;
   stopServerRef = stopServer;
 
-  const ready = await waitForServer(listenPort);
+  const ready = await waitForServer(activePort);
   if (!ready) {
-    throw new Error(`本地服务未在预期时间内启动（端口 ${listenPort}）`);
+    throw new Error(`本地服务未在预期时间内启动（端口 ${activePort}）`);
   }
 
-  mainWindow = createMainWindow(listenPort);
+  mainWindow = createMainWindow(activePort);
 }
 
 app.whenReady().then(async () => {

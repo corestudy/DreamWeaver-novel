@@ -24,6 +24,23 @@ function byId(id) {
   return document.getElementById(id);
 }
 
+function normalizeCoverImageUrl(rawUrl) {
+  const value = String(rawUrl || "").trim();
+  if (!value) {
+    return "";
+  }
+  try {
+    const parsed = new URL(value, window.location.origin);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "data:") {
+      return parsed.href;
+    }
+  } catch {
+    // ignore invalid url
+  }
+  return "";
+}
+
+
 function showNotice(message, type = "info", timeout = 2600) {
   const el = byId("shelfNotice");
   el.textContent = message;
@@ -38,12 +55,18 @@ function showNotice(message, type = "info", timeout = 2600) {
 
 function renderShelf(list) {
   const grid = byId("shelfGrid");
-  grid.innerHTML = "";
+  grid.replaceChildren();
 
   if (!Array.isArray(list) || list.length === 0) {
     const card = document.createElement("div");
     card.className = "panel";
-    card.innerHTML = "<h3>书架为空</h3><p class='muted'>点击右上角“添加新书籍”开始创建。</p>";
+    const title = document.createElement("h3");
+    title.textContent = "暂无作品";
+    const desc = document.createElement("p");
+    desc.className = "muted";
+    desc.textContent = "先在作品配置页创建第一本书。";
+    card.appendChild(title);
+    card.appendChild(desc);
     grid.appendChild(card);
     return;
   }
@@ -61,24 +84,60 @@ function renderShelf(list) {
     const safeColor = String(book.cover_color || "#ff5f7a");
     const safeCount = Number(book.chapter_count || 0);
 
-    const coverBlock = book.cover_image
-      ? `<div class="book-spine-cover" style="background-image:url('${String(book.cover_image).replace(/'/g, "%27")}')"></div>`
-      : "<div class=\"book-spine-cover fallback\">NO IMG</div>";
+    const top = document.createElement("div");
+    top.className = "book-top";
+    top.style.background = safeColor;
 
-    card.innerHTML = `
-      <div class="book-top" style="background:${safeColor}"></div>
-      <div class="book-body">
-        ${coverBlock}
-        <h3>${safeName}</h3>
-        <p class="muted">${safeDesc}</p>
-        <div class="book-meta">章节: ${safeCount}</div>
-        <div class="book-actions action-row-2">
-          <a class="ghost-btn link-btn action-edit" href="/book-config.html?projectId=${book.id}">编辑配置</a>
-          <button class="danger ghost-danger action-delete" data-action="delete" data-id="${book.id}" data-name="${safeName}">删除书籍</button>
-        </div>
-      </div>
-    `;
+    const body = document.createElement("div");
+    body.className = "book-body";
 
+    const cover = document.createElement("div");
+    cover.className = "book-spine-cover";
+    const coverUrl = normalizeCoverImageUrl(book.cover_image);
+    if (coverUrl) {
+      cover.style.backgroundImage = `url("${coverUrl}")`;
+    } else {
+      cover.classList.add("fallback");
+      cover.textContent = "NO IMG";
+    }
+
+    const title = document.createElement("h3");
+    title.textContent = safeName;
+
+    const desc = document.createElement("p");
+    desc.className = "muted";
+    desc.textContent = safeDesc;
+
+    const meta = document.createElement("div");
+    meta.className = "book-meta";
+    meta.textContent = `章节: ${safeCount}`;
+
+    const actions = document.createElement("div");
+    actions.className = "book-actions action-row-2";
+
+    const editLink = document.createElement("a");
+    editLink.className = "ghost-btn link-btn action-edit";
+    editLink.href = `/book-config.html?projectId=${book.id}`;
+    editLink.textContent = "编辑配置";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "danger ghost-danger action-delete";
+    delBtn.dataset.action = "delete";
+    delBtn.dataset.id = String(book.id);
+    delBtn.dataset.name = safeName;
+    delBtn.textContent = "删除作品";
+
+    actions.appendChild(editLink);
+    actions.appendChild(delBtn);
+
+    body.appendChild(cover);
+    body.appendChild(title);
+    body.appendChild(desc);
+    body.appendChild(meta);
+    body.appendChild(actions);
+
+    card.appendChild(top);
+    card.appendChild(body);
     slot.appendChild(card);
     grid.appendChild(slot);
   });

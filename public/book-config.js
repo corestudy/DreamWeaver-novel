@@ -70,11 +70,14 @@ function readBookForm() {
   };
 }
 
-function readBookAiOverrideForm() {
+function readBookAiOverrideForm(options = {}) {
+  const forceClearApiKey = Boolean(options.forceClearApiKey);
+  const apiKeyInput = byId("cfgAiApiKeyOverride").value.trim();
   return {
     ai_base_url_override: byId("cfgAiBaseUrlOverride").value.trim(),
     ai_model_override: byId("cfgModelOverride").value.trim(),
-    ai_api_key_override: byId("cfgAiApiKeyOverride").value.trim()
+    ai_api_key_override: forceClearApiKey ? "" : apiKeyInput,
+    keep_ai_api_key_override: forceClearApiKey ? false : !apiKeyInput
   };
 }
 
@@ -86,7 +89,10 @@ function fillBookForm(project, config) {
 
   byId("cfgModelOverride").value = config?.ai_model_override || "";
   byId("cfgAiBaseUrlOverride").value = config?.ai_base_url_override || "";
-  byId("cfgAiApiKeyOverride").value = config?.ai_api_key_override || "";
+  byId("cfgAiApiKeyOverride").value = "";
+  byId("cfgAiApiKeyOverride").placeholder = config?.has_ai_api_key_override
+    ? `已保存：${config.ai_api_key_override_masked || "已隐藏敏感信息"}`
+    : "留空表示沿用默认 API Key";
 }
 
 function renderCoverPreview(imageValue) {
@@ -183,12 +189,12 @@ async function updateBookWithConfig(projectId) {
   }, 900);
 }
 
-async function saveBookAiOverride() {
+async function saveBookAiOverride(options = {}) {
   if (!ensureEditModeForBookAi()) {
     return;
   }
 
-  const ai = readBookAiOverrideForm();
+  const ai = readBookAiOverrideForm(options);
   await api(`/api/projects/${state.editProjectId}/config`, {
     method: "PUT",
     body: JSON.stringify(ai)
@@ -207,7 +213,7 @@ async function clearBookAiOverride() {
   byId("cfgModelOverride").value = "";
   byId("cfgAiApiKeyOverride").value = "";
 
-  await saveBookAiOverride();
+  await saveBookAiOverride({ forceClearApiKey: true });
   setBookAiOverrideStatus("本书专属 API 已清空，将回退默认 API");
 }
 
